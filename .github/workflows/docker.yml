@@ -1,0 +1,87 @@
+name: Docker image
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Private AutoCat branch, tag, or commit
+        required: true
+        default: main
+        type: string
+      platform:
+        description: Docker target platform
+        required: true
+        default: linux/arm64
+        type: choice
+        options:
+          - linux/arm64
+          - linux/amd64
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/uifor/autocat
+  GO2RTC_VERSION: v1.9.14
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Docker image (${{ inputs.platform }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private AutoCat source
+        uses: actions/checkout@v4
+        with:
+          repository: uifor/AutoCat
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.AUTOCAT_READ_TOKEN }}
+          path: source
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: source/web/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        working-directory: source/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web frontend
+        working-directory: source/web
+        run: pnpm build
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: uifor
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: source
+          file: source/Dockerfile
+          platforms: ${{ inputs.platform }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:build-${{ github.run_number }}
+          build-args: GO2RTC_VERSION=${{ env.GO2RTC_VERSION }}
+          provenance: false
+          sbom: false
