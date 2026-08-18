@@ -8,17 +8,20 @@ The source repository is checked out only inside the temporary GitHub-hosted
 runner. It is not copied into this repository, uploaded as an artifact, or
 included in the final image.
 
-## Required repository secrets
+## Required repository secret
 
 Configure these secrets in **Settings -> Secrets and variables -> Actions**:
 
 - `AUTOCAT_READ_TOKEN`: a read-only token that can read the private `uifor/AutoCat`
   repository contents.
-- `GHCR_TOKEN`: a token that can publish the `ghcr.io/uifor/autocat` package.
 
-Keep these tokens separate and do not print them from workflow steps. The public
-workflow is intentionally limited to manual `workflow_dispatch` runs so that
-untrusted pull requests cannot access the secrets.
+The `ghcr.io/uifor/autocat` package has already been granted **Write** access for
+this repository, so the workflow uses GitHub's short-lived `GITHUB_TOKEN` for
+GHCR publishing. No long-lived GHCR token is required.
+
+Do not print the read token from workflow steps. The public workflow is
+intentionally limited to manual `workflow_dispatch` runs so that untrusted pull
+requests cannot access the secret.
 
 ## Build
 
