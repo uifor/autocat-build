@@ -29,5 +29,5 @@ Open **Actions -> Docker image -> Run workflow**. The default target is
 `linux/arm64`; select `linux/amd64` only when needed.
 
 The workflow builds the frontend and Docker image in one temporary job. It does
-not use a GitHub Actions Docker layer cache, because intermediate layers can
-contain private source files.
+not use a GitHub Actions Docker layer cache or publish a Docker build summary,
+because intermediate layers and build metadata are unnecessary public data.
