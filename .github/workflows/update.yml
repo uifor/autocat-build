@@ -1,0 +1,99 @@
+name: Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Build revision
+        required: true
+        default: main
+        type: string
+      platform:
+        description: Docker target platform
+        required: true
+        default: linux/arm64
+        type: choice
+        options:
+          - linux/arm64
+          - linux/amd64
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/uifor/nectar-ai
+  DOCKER_BUILD_SUMMARY: "false"
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  update:
+    name: Update (${{ inputs.platform }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v6
+        with:
+          repository: uifor/Nectar-AI
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.PRIVATE_SOURCE_READ_TOKEN }}
+          path: source
+          persist-credentials: false
+          fetch-depth: 1
+          fetch-tags: false
+
+      - name: Restrict Docker build context
+        shell: bash
+        run: |
+          printf '%s\n' \
+            '.git' \
+            '.github' \
+            '**/node_modules' \
+            '**/dist' \
+            'storage' \
+            'tmp' \
+            'backend/data' \
+            '.env' \
+            '.env.*' \
+            '*.log' \
+            '*.db' \
+            '*.db-*' \
+            'docs' \
+            'deploy' \
+            'scripts' \
+            'AGENTS.md' \
+            'PRODUCT.md' \
+            'README.md' \
+            > source/.dockerignore
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v7
+        with:
+          context: source
+          file: source/Dockerfile
+          platforms: ${{ inputs.platform }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:build-${{ github.run_number }}
+          pull: true
+          no-cache: true
+          provenance: false
+          sbom: false
+
+      - name: Remove temporary source
+        if: always()
+        shell: bash
+        run: rm -rf -- "$GITHUB_WORKSPACE/source"
